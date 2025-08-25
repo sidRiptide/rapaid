@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "267450896997",
+    "project_id": "rapaid-b4867",
+    "storage_bucket": "rapaid-b4867.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:267450896997:android:2a7cadfab3a05ec6b56c8c",
+        "android_client_info": {
+          "package_name": "com.example.rapaid"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDINXevsiaFiD7XE-UKR-J_YhQ3SltgLEk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
