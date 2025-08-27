@@ -11,18 +11,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-//import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,6 +30,8 @@ import com.example.rapaid.data.RequestModel
 import com.example.rapaid.models.Ambulance
 import com.example.rapaid.models.sosRequests
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,12 +40,17 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
 
     var requests by remember { mutableStateOf<List<sosRequests>>(emptyList()) }
     var ambulances by remember { mutableStateOf<List<Ambulance>>(emptyList()) }
+    var myAmbulance by remember { mutableStateOf<Ambulance?>(null) }
+    var showAmbulanceDialog by remember { mutableStateOf(false) } // 🔹 control dialog
 
     // Firestore listeners
     DisposableEffect(Unit) {
         val reqListener = requestModel.listenForSOSRequests { requests = it }
-        val ambListener = requestModel.listenForAmbulances { ambulances = it }
-
+        val ambListener = requestModel.listenForAmbulances {
+            ambulances = it
+            val currentEmail = FirebaseAuth.getInstance().currentUser?.email
+            myAmbulance = it.find { amb -> amb.driver == currentEmail }
+        }
         onDispose {
             reqListener.remove()
             ambListener.remove()
@@ -54,12 +58,16 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
     }
 
     Box {
-        // Background image like register screen
         Image(
             painter = painterResource(id = R.drawable.background),
             contentDescription = "dashboardBackground",
-            contentScale = ContentScale.FillBounds,
+            contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.3f))
         )
     }
 
@@ -68,14 +76,30 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
             TopAppBar(
                 title = {
                     Text(
-                        "🚑 Ambulance Dashboard",
-                        fontSize = 24.sp,
+                        "Ambulance Dashboard",
+                        fontSize = 22.sp,
                         fontFamily = FontFamily.SansSerif,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Blue)
+                actions = {
+                    // Overflow Menu
+                    var expanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { expanded = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White)
+                    }
+                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("All Registered Ambulances") },
+                            onClick = {
+                                expanded = false
+                                showAmbulanceDialog = true
+                            }
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D47A1))
             )
         },
         containerColor = Color.Transparent
@@ -90,18 +114,18 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Pending Requests
-            item { SectionHeader("📌 Pending Requests") }
+            item { SectionHeader("Pending Requests") }
             val pendingRequests = requests.filter { it.status == "pending" }
             if (pendingRequests.isEmpty()) {
                 item { EmptyCard("No pending requests") }
             } else {
                 items(pendingRequests) { req ->
-                    PendingRequestCard(req, context, requestModel)
+                    PendingRequestCard(req, context, requestModel, myAmbulance)
                 }
             }
 
             // Active Requests
-            item { SectionHeader("⚡ Active Requests") }
+            item { SectionHeader("Active Requests") }
             val activeRequests = requests.filter { it.status == "in_progress" }
             if (activeRequests.isEmpty()) {
                 item { EmptyCard("No active requests") }
@@ -109,99 +133,204 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
                 items(activeRequests) { req ->
                     ActiveRequestCard(
                         request = req,
-                        onResolve = { requestModel.markRequestResolved(req.id, context) },
+                        onResolve = {
+                            requestModel.markRequestResolved(req.id, context)
+                        },
                         context = context
                     )
                 }
             }
 
-            // Registered Ambulances
-            item { SectionHeader("🚑 Ambulances Registered") }
-            if (ambulances.isEmpty()) {
-                item { EmptyCard("No ambulances registered") }
-            } else {
-                items(ambulances) { amb ->
+            // My Ambulance Info
+            item {
+                SectionHeader("My Ambulance")
+            }
+
+            if (myAmbulance != null) {
+                item {
+                    var showEditDialog by remember { mutableStateOf(false) }
+                    var showDeleteDialog by remember { mutableStateOf(false) }
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD)),
-                        elevation = CardDefaults.cardElevation(8.dp),
-                        shape = MaterialTheme.shapes.large
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B).copy(alpha = 0.95f)
+                        ),
+                        elevation = CardDefaults.cardElevation(6.dp),
+                        shape = MaterialTheme.shapes.medium
                     ) {
                         Column(Modifier.padding(16.dp)) {
-                            Text("Organisation: ${amb.organisation}", fontWeight = FontWeight.Bold, color = Color.Blue)
-                            Text("Plate: ${amb.plateNumber}", color = Color.DarkGray)
-                            Text("Status: ${amb.status}", color = Color.Gray)
+                            Text("Email: ${myAmbulance!!.driver}", fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.9f)
+                            )
+                            Text("Organisation: ${myAmbulance!!.organisation}", color = Color.White)
+                            Text("Plate: ${myAmbulance!!.plateNumber}", color = Color.White)
+                            Text("Status: ${myAmbulance!!.status}", color = Color.White.copy(alpha = 0.9f)
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                Button(onClick = { showEditDialog = true }) {
+                                    Text("Edit")
+                                }
+                                Button(
+                                    onClick = { showDeleteDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                                ) {
+                                    Text("Delete")
+                                }
+                            }
+                        }
+                    }
+
+                    // ✏️ Edit Dialog
+                    if (showEditDialog) {
+                        var newOrg by remember { mutableStateOf(myAmbulance!!.organisation) }
+                        var newPlate by remember { mutableStateOf(myAmbulance!!.plateNumber) }
+
+                        AlertDialog(
+                            onDismissRequest = { showEditDialog = false },
+                            title = { Text("Edit Ambulance") },
+                            text = {
+                                Column {
+                                    OutlinedTextField(
+                                        value = newOrg,
+                                        onValueChange = { newOrg = it },
+                                        label = { Text("Organisation") }
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = newPlate,
+                                        onValueChange = { newPlate = it },
+                                        label = { Text("Plate Number") }
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(onClick = {
+                                    FirebaseFirestore.getInstance()
+                                        .collection("ambulances")
+                                        .document(myAmbulance!!.id)
+                                        .update(
+                                            mapOf(
+                                                "organisation" to newOrg,
+                                                "plateNumber" to newPlate
+                                            )
+                                        )
+                                    showEditDialog = false
+                                }) {
+                                    Text("Update")
+                                }
+                            },
+                            dismissButton = {
+                                OutlinedButton(onClick = { showEditDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+
+                    // 🗑️ Delete Confirmation Dialog
+                    if (showDeleteDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showDeleteDialog = false },
+                            title = { Text("Confirm Delete") },
+                            text = { Text("Are you sure you want to delete this ambulance?") },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        FirebaseFirestore.getInstance()
+                                            .collection("ambulances")
+                                            .document(myAmbulance!!.id)
+                                            .delete()
+                                        showDeleteDialog = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                                ) {
+                                    Text("Delete")
+                                }
+                            },
+                            dismissButton = {
+                                OutlinedButton(onClick = { showDeleteDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+                }
+
+
+        } else {
+                item { EmptyCard("No ambulance linked to your account") }
+            }
+        }
+    }
+
+    // 🔹 Dialog showing all registered ambulances
+    if (showAmbulanceDialog) {
+        AlertDialog(
+            onDismissRequest = { showAmbulanceDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showAmbulanceDialog = false }) {
+                    Text("Close")
+                }
+            },
+            title = { Text("All Registered Ambulances") },
+            text = {
+                LazyColumn {
+                    items(ambulances) { amb ->
+                        Column(Modifier.padding(vertical = 6.dp)) {
+                            Text("ID: ${amb.id}", fontWeight = FontWeight.Bold)
+                            Text("Driver: ${amb.driver}")
+                            Text("Plate: ${amb.plateNumber}")
+                            Text("Organisation: ${amb.organisation}")
+                            Divider(Modifier.padding(top = 6.dp))
                         }
                     }
                 }
             }
-        }
+        )
     }
 }
 
+
+
 @Composable
-fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleLarge.copy(
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.SansSerif,
-            color = Color.Blue
+fun PendingRequestCard(req: sosRequests, context: Context, requestModel: RequestModel, myAmbulance: Ambulance?) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B).copy(alpha = 0.95f)
         ),
-        modifier = Modifier.padding(vertical = 8.dp)
-    )
-}
-
-@Composable
-fun EmptyCard(message: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0x80FFFFFF)),
-        elevation = CardDefaults.cardElevation(4.dp),
-        shape = MaterialTheme.shapes.large
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(message, color = Color.Gray, fontSize = 14.sp)
-        }
-    }
-}
-
-@Composable
-fun PendingRequestCard(req: sosRequests, context: Context, requestModel: RequestModel) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
         elevation = CardDefaults.cardElevation(6.dp),
         shape = MaterialTheme.shapes.large
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text("Request ID: ${req.id}", fontWeight = FontWeight.Bold, color = Color.DarkGray)
+
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red)
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFFFFFBFA))
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = "Location: ${req.latitude}, ${req.longitude}",
-                    color = Color.Blue,
+                    color = Color.White.copy(alpha = 0.9f)
+                    ,
                     modifier = Modifier.clickable {
-                        openMaps(req.latitude, req.longitude, context)
+                        openMaps( context,req.latitude, req.longitude)
                     }
                 )
             }
 
             Spacer(Modifier.height(12.dp))
 
-            val ambulanceId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-            if (ambulanceId.isNotEmpty()) {
+            myAmbulance?.let {
                 Button(
                     onClick = {
-                        requestModel.acceptRequest(req.id, ambulanceId) { success, error ->
+                        requestModel.acceptRequest(req.id, it.id) { success, error ->
                             if (success) {
                                 Toast.makeText(context, "✅ Request accepted", Toast.LENGTH_SHORT).show()
+                                // 🔹 Open Google Maps with location
+                                openMaps(context, req.latitude, req.longitude)
                             } else {
                                 Toast.makeText(context, "❌ Error: $error", Toast.LENGTH_SHORT).show()
                             }
@@ -210,15 +339,52 @@ fun PendingRequestCard(req: sosRequests, context: Context, requestModel: Request
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)
                 ) {
-
-                    Spacer(Modifier.width(6.dp))
-                    Text("Accept Request", color = Color.White)
+                    Text("Accept Request", color = Color(0xFFFFFBFA)
+                    )
                 }
+
             }
         }
     }
 }
+@Composable
+fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.White.copy(alpha = 0.9f)
+        ,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    )
+}
 
+@Composable
+fun EmptyCard(message: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B).copy(alpha = 0.95f)
+
+        ),
+        elevation = CardDefaults.cardElevation(4.dp),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = message,
+                color = Color(0xFFFFFBFA),
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+            )
+        }
+    }
+}
 @Composable
 fun ActiveRequestCard(
     request: sosRequests,
@@ -227,22 +393,26 @@ fun ActiveRequestCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B).copy(alpha = 0.95f)
+
+        ),
         elevation = CardDefaults.cardElevation(6.dp),
         shape = MaterialTheme.shapes.large
     ) {
         Column(Modifier.padding(16.dp)) {
-            Text("Request ID: ${request.id}", fontWeight = FontWeight.Bold, color = Color.DarkGray)
-            Text("Ambulance: ${request.assignedAmbulanceId ?: "Unassigned"}", color = Color.Gray)
+            Text("Request ID: ${request.id}", fontWeight = FontWeight.Bold, color = Color(0xFFFFFBFA)
+            )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Red)
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint =Color(0xFFFFFBFA)
+                )
                 Spacer(Modifier.width(4.dp))
                 Text(
                     text = "Location: ${request.latitude}, ${request.longitude}",
-                    color = Color.Blue,
+                    color = Color.White.copy(alpha = 0.9f)
+                    ,
                     modifier = Modifier.clickable {
-                        openMaps(request.latitude, request.longitude, context)
+                        openMaps( context,request.latitude, request.longitude)
                     }
                 )
             }
@@ -250,22 +420,36 @@ fun ActiveRequestCard(
             Spacer(Modifier.height(12.dp))
 
             Button(
-                onClick = onResolve,
+                onClick = {
+                    onResolve()
+                    Toast.makeText(context, "✅ Request resolved", Toast.LENGTH_SHORT).show()
+                },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF43A047))
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFFBFA)
+                )
             ) {
-                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
-                Spacer(Modifier.width(6.dp))
-                Text("Mark Resolved", color = Color.White)
+                Text("Mark as Resolved", color = Color(0xFFFFFBFA)
+                )
             }
         }
     }
 }
 
-// 🔹 Open location in Google Maps
-fun openMaps(lat: Double, lng: Double, context: Context) {
-    val uri = Uri.parse("geo:$lat,$lng?q=$lat,$lng(SOS Location)")
-    val intent = Intent(Intent.ACTION_VIEW, uri)
-    intent.setPackage("com.google.android.apps.maps")
-    context.startActivity(intent)
+fun openMaps(context: Context, latitude: Double, longitude: Double) {
+    try {
+        // Create a geo URI
+        val gmmIntentUri = Uri.parse("geo:$latitude,$longitude?q=$latitude,$longitude(Ambulance+Location)")
+
+        // Intent to open maps
+        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
+            setPackage("com.google.android.apps.maps") // Use Google Maps if installed
+        }
+
+        // Start activity
+        context.startActivity(mapIntent)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Toast.makeText(context, "Unable to open Maps", Toast.LENGTH_SHORT).show()
+    }
 }
+

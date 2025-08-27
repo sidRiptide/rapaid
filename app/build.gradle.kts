@@ -65,6 +65,7 @@ dependencies {
     // Location services
     implementation("com.google.android.gms:play-services-location:21.0.1")
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
     // MapLibre
     implementation("org.maplibre.gl:android-sdk:9.6.0")

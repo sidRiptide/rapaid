@@ -92,6 +92,22 @@ class RequestModel {
                 onStatusChange(status)
             }
     }
+    fun updateAmbulance(id: String, updates: Map<String, Any>, onComplete: (Boolean, String?) -> Unit) {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("ambulances").document(id)
+            .update(updates)
+            .addOnSuccessListener { onComplete(true, null) }
+            .addOnFailureListener { e -> onComplete(false, e.message) }
+    }
+
+    fun deleteAmbulance(id: String, onComplete: (Boolean, String?) -> Unit) {
+        val db = FirebaseFirestore.getInstance()
+        db.collection("ambulances").document(id)
+            .delete()
+            .addOnSuccessListener { onComplete(true, null) }
+            .addOnFailureListener { e -> onComplete(false, e.message) }
+    }
+
 
 
     // ✅ Mark request resolved (for ambulance side)
@@ -107,6 +123,7 @@ class RequestModel {
                 Toast.makeText(context, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
     }
+
 
     // inside RequestModel.kt
 //    fun assignAmbulance(requestId: String, ambulanceId: String, context: Context) {
@@ -136,13 +153,45 @@ class RequestModel {
 //            }
 //    }
     // inside RequestModel.kt
+//    fun listenForAmbulances(onUpdate: (List<Ambulance>) -> Unit): ListenerRegistration {
+//        val db = FirebaseFirestore.getInstance()
+//
+//        return db.collection("ambulances")
+//            .addSnapshotListener { snapshots, e ->
+//                if (e != null) {
+//                    onUpdate(emptyList()) // In case of error, return empty list
+//                    return@addSnapshotListener
+//                }
+//
+//                val ambulances = snapshots?.documents?.mapNotNull { doc ->
+//                    try {
+//                        Ambulance(
+//                            id = doc.id,
+//                            organisation = doc.getString("organisation") ?: "Unknown Org",
+//                            driver = doc.getString("driver") ?: "Unnamed Driver",
+//                            plateNumber = doc.getString("plateNumber") ?: "No Plate",
+//                            status = doc.getString("status") ?: "Unavailable",
+//                            latitude = doc.getDouble("latitude") ?: 0.0,
+//                            longitude = doc.getDouble("longitude") ?: 0.0
+//                        )
+//                    } catch (_: Exception) {
+//                        null
+//                    }
+//                } ?: emptyList()
+//
+//                onUpdate(ambulances)
+//            }
+//    }
     fun listenForAmbulances(onUpdate: (List<Ambulance>) -> Unit): ListenerRegistration {
         val db = FirebaseFirestore.getInstance()
+        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return db.collection("ambulances")
+            .addSnapshotListener { _, _ -> onUpdate(emptyList()) } // No user logged in
 
         return db.collection("ambulances")
+            .whereEqualTo("id", currentUserId) // 🔹 only fetch the logged-in user's ambulance
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
-                    onUpdate(emptyList()) // In case of error, return empty list
+                    onUpdate(emptyList())
                     return@addSnapshotListener
                 }
 
@@ -165,7 +214,8 @@ class RequestModel {
                 onUpdate(ambulances)
             }
     }
-//    fun autoRegisterCurrentUserAsAmbulance() {
+
+    //    fun autoRegisterCurrentUserAsAmbulance() {
 //        val user = FirebaseAuth.getInstance().currentUser ?: return
 //        val db = FirebaseFirestore.getInstance()
 //

@@ -7,6 +7,8 @@ import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
 import com.example.rapaid.models.UserModel
 import com.example.rapaid.navigation.ROUTE_AMBULANCE_DASHBOARD
+import com.example.rapaid.navigation.ROUTE_HOME
+import com.example.rapaid.navigation.ROUTE_LOCATION_PERMISSION
 import com.example.rapaid.navigation.ROUTE_SOS_SCREEN
 import com.example.rapaid.navigation.ROUTE_LOGIN
 import com.google.firebase.auth.FirebaseAuth
@@ -157,9 +159,10 @@ class AuthViewModel : ViewModel() {
                                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                             }
                         } else {
-                            navController.navigate(ROUTE_SOS_SCREEN) {
-                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            navController.navigate(ROUTE_LOCATION_PERMISSION) {
+                                popUpTo(ROUTE_LOGIN) { inclusive = true }
                             }
+
                         }
                     }
                     .addOnFailureListener {

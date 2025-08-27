@@ -5,6 +5,7 @@ package com.example.rapaid.ui.theme.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -39,11 +41,12 @@ fun loginScreen(navController: NavController) {
     var password by remember { mutableStateOf("") }
     val authViewModel: AuthViewModel = viewModel()
 
-    Box {
+    Box (modifier = Modifier.fillMaxSize()){
         Image(
             painter = painterResource(id = R.drawable.background),
             contentDescription = "loginBackground",
-            contentScale = ContentScale.FillBounds
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
         )
     }
 
@@ -64,14 +67,16 @@ fun loginScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(20.dp))
 
+
         Image(
             painter = painterResource(id = R.drawable.rapaid),
             contentDescription = "App Logo",
             modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp),
-            contentScale = ContentScale.Fit
+                .size(80.dp) // 🔹 make it square for perfect circle
+                .clip(CircleShape), // 🔹 clip to circle
+            contentScale = ContentScale.Crop // 🔹 crop so it fills circle
         )
+
 
         OutlinedTextField(
             value = email,

@@ -9,20 +9,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.rapaid.LocationHelper
 import com.example.rapaid.data.Location
 import com.example.rapaid.data.RequestModel
 import com.example.rapaid.navigation.ROUTE_SOS_STATUS
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun UserSOSScreen(
-    navController: NavController,
-
-) {
+fun UserSOSScreen(navController: NavController) {
     val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-    val location = Location(1.2921, 36.8219)
     val context = LocalContext.current
     val requestModel = remember { RequestModel() }
+    val locationHelper = remember { LocationHelper(context) }
 
     var isSending by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Idle") }
@@ -41,27 +39,41 @@ fun UserSOSScreen(
         Button(
             onClick = {
                 isSending = true
-                status = "Sending..."
-                requestModel.sendSOS( location ) { success, error ->
-                    isSending = false
-                    status = if (success) {
-                        Toast.makeText(context, "✅ SOS Sent", Toast.LENGTH_SHORT).show()
-                        // Optional navigation after success
-                        navController.navigate( "$ROUTE_SOS_STATUS/$userId/${location.latitude}/${location.longitude}") {
-                            popUpTo("user_sos") { inclusive = true }
+                status = "Getting location..."
+
+                locationHelper.getCurrentLocation { location ->
+                    if (location == null) {
+                        isSending = false
+                        status = "Failed"
+                        Toast.makeText(context, "⚠️ Unable to get location", Toast.LENGTH_LONG).show()
+                        return@getCurrentLocation
+                    }
+
+                    // Now send SOS with actual user location
+                    status = "Sending..."
+                    requestModel.sendSOS(location) { success, error ->
+                        isSending = false
+                        status = if (success) {
+                            Toast.makeText(context, "✅ SOS Sent", Toast.LENGTH_SHORT).show()
+                            navController.navigate(
+                                "$ROUTE_SOS_STATUS/$userId/${location.latitude}/${location.longitude}"
+                            ) {
+                                popUpTo("user_sos") { inclusive = true }
+                            }
+                            "SOS Sent!"
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "❌ Failed to send SOS: ${error ?: "Unknown error"}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            "Failed"
                         }
-                        "SOS Sent!"
-                    } else {
-                        Toast.makeText(
-                            context,
-                            "❌ Failed to send SOS: ${error ?: "Unknown error"}",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        "Failed"
                     }
                 }
             },
-            enabled = !isSending
+            enabled = !isSending,
+                    modifier = Modifier.height(40.dp)
         ) {
             if (isSending) {
                 CircularProgressIndicator(

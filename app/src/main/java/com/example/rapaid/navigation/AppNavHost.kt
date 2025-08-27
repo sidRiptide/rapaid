@@ -13,10 +13,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.rapaid.data.Location
 import com.example.rapaid.ui.theme.screens.AmbulanceDashboard
+import com.example.rapaid.ui.theme.screens.HomeScreen
 import com.example.rapaid.ui.theme.screens.LocationPermissionScreen
 
 import com.example.rapaid.ui.theme.screens.UserSOSScreen
 import com.example.rapaid.ui.theme.screens.SosStatusScreen
+import com.example.rapaid.ui.theme.screens.SplashScreen
 import com.example.rapaid.ui.theme.screens.UserSOSScreen
 import com.example.rapaid.ui.theme.screens.loginScreen
 import com.example.rapaid.ui.theme.screens.registerScreens.AmbulanceRegisterScreen
@@ -27,13 +29,20 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun AppNavHost(
     navController: NavHostController = rememberNavController(),
-    startDestination: String = ROUTE_CHOOSE_REGISTER
+    startDestination: String = ROUTE_SPLASH
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
+        composable(ROUTE_SPLASH) { SplashScreen { navController.navigate(ROUTE_CHOOSE_REGISTER){popUpTo(
+            ROUTE_SPLASH){inclusive=true}} }  }
         composable(ROUTE_LOCATION_PERMISSION) { LocationPermissionScreen(navController) }
         composable(ROUTE_CHOOSE_REGISTER){ChooseRegisterScreen(navController)}
         composable(ROUTE_REGISTER_AMBULANCE){AmbulanceRegisterScreen(navController)}
         composable(ROUTE_REGISTER_PATIENT){PatientRegisterScreen(navController)}
+        composable(ROUTE_HOME) {
+            HomeScreen(navController)
+        }
+
+
         composable(ROUTE_SOS_SCREEN) {
             // Pass dummy coordinates for now; replace with actual location
             UserSOSScreen(

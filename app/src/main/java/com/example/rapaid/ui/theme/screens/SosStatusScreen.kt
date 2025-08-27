@@ -44,8 +44,8 @@ fun SosStatusScreen(userId: String, location: Location) {
             }
             else -> {
                 val (statusText, statusColor) = when (status.lowercase()) {
-                    "pending" -> "Waiting for ambulance..." to Color.Yellow
-                    "in_progress", "accepted" -> "🚑 Ambulance on the way!" to Color.Green
+                    "pending" -> "Waiting for ambulance..." to Color.Red
+                    "in_progress", "accepted" -> "🚑 Ambulance on the way!" to Color.Blue
                     "resolved" -> "✅ Request resolved" to Color.Blue
                     "rejected" -> "❌ Request rejected" to Color.Red
                     else -> "Unknown status: $status" to MaterialTheme.colorScheme.onBackground
@@ -61,31 +61,8 @@ fun SosStatusScreen(userId: String, location: Location) {
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        Button(
-            onClick = {
-                isSending = true
-                requestModel.sendSOS(location) { success, error ->
-                    isSending = false
-                    status = if (success) {
-                        "pending"
-                    } else {
-                        "error: ${error ?: "unknown error"}"
-                    }
-                }
-            },
-            enabled = !isSending
-        ) {
-            if (isSending) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Sending...")
-            } else {
-                Text("Send SOS")
-            }
-        }
+
+
     }
 }
+///////////
