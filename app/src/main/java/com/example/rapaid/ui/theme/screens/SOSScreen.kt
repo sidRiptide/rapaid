@@ -17,8 +17,8 @@ import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun UserSOSScreen(navController: NavController) {
-    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val context = LocalContext.current
+    val userId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
     val requestModel = remember { RequestModel() }
     val locationHelper = remember { LocationHelper(context) }
 
@@ -39,18 +39,22 @@ fun UserSOSScreen(navController: NavController) {
         Button(
             onClick = {
                 isSending = true
-                status = "Getting location..."
+                status = "Getting GPS fix..."
 
-                locationHelper.getCurrentLocation { location ->
+                locationHelper.getValidLocation { location ->
                     if (location == null) {
                         isSending = false
                         status = "Failed"
-                        Toast.makeText(context, "⚠️ Unable to get location", Toast.LENGTH_LONG).show()
-                        return@getCurrentLocation
+                        Toast.makeText(
+                            context,
+                            "⚠️ Unable to get valid location. Make sure GPS is ON",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        return@getValidLocation
                     }
 
-                    // Now send SOS with actual user location
-                    status = "Sending..."
+                    // ✅ Valid location → send SOS
+                    status = "Sending SOS..."
                     requestModel.sendSOS(location) { success, error ->
                         isSending = false
                         status = if (success) {
@@ -73,16 +77,18 @@ fun UserSOSScreen(navController: NavController) {
                 }
             },
             enabled = !isSending,
-                    modifier = Modifier.height(40.dp)
+            modifier = Modifier.height(48.dp)
         ) {
             if (isSending) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Sending...")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(status)
+                }
             } else {
                 Text("Send SOS")
             }

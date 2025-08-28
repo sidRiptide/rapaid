@@ -6,6 +6,7 @@ import android.widget.Toast
 import com.example.rapaid.models.Ambulance
 import com.example.rapaid.models.sosRequests
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 
@@ -22,17 +23,19 @@ class RequestModel {
         location: Location,
         onResult: (Boolean, String?) -> Unit
     ) {
-        val userId = auth.currentUser?.uid
-        if (userId == null) {
+        val userId = auth.currentUser?.uid ?: run {
             onResult(false, "User not logged in")
             return
         }
 
-        val sos = hashMapOf(
+        val sos = mapOf(
             "userId" to userId,
+            "latitude" to location.latitude,
+            "longitude" to location.longitude,
             "status" to "pending",
-            "timestamp" to System.currentTimeMillis()
+            "timestamp" to FieldValue.serverTimestamp()
         )
+
 
         db.collection("sos_requests")
             .add(sos)
@@ -191,6 +194,36 @@ class RequestModel {
             .whereEqualTo("id", currentUserId) // 🔹 only fetch the logged-in user's ambulance
             .addSnapshotListener { snapshots, e ->
                 if (e != null) {
+                    onUpdate(emptyList())
+                    return@addSnapshotListener
+                }
+
+                val ambulances = snapshots?.documents?.mapNotNull { doc ->
+                    try {
+                        Ambulance(
+                            id = doc.id,
+                            organisation = doc.getString("organisation") ?: "Unknown Org",
+                            driver = doc.getString("driver") ?: "Unnamed Driver",
+                            plateNumber = doc.getString("plateNumber") ?: "No Plate",
+                            status = doc.getString("status") ?: "Unavailable",
+                            latitude = doc.getDouble("latitude") ?: 0.0,
+                            longitude = doc.getDouble("longitude") ?: 0.0
+                        )
+                    } catch (_: Exception) {
+                        null
+                    }
+                } ?: emptyList()
+
+                onUpdate(ambulances)
+            }
+    }
+    fun fetchAllAmbulances(onUpdate: (List<Ambulance>) -> Unit): ListenerRegistration {
+        val db = FirebaseFirestore.getInstance()
+
+        return db.collection("ambulances")
+            .addSnapshotListener { snapshots, e ->
+                if (e != null) {
+                    // Error occurred, return empty list
                     onUpdate(emptyList())
                     return@addSnapshotListener
                 }

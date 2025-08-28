@@ -41,22 +41,27 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
     var requests by remember { mutableStateOf<List<sosRequests>>(emptyList()) }
     var ambulances by remember { mutableStateOf<List<Ambulance>>(emptyList()) }
     var myAmbulance by remember { mutableStateOf<Ambulance?>(null) }
-    var showAmbulanceDialog by remember { mutableStateOf(false) } // 🔹 control dialog
+    var showAmbulanceDialog by remember { mutableStateOf(false) }
 
     // Firestore listeners
     DisposableEffect(Unit) {
-        val reqListener = requestModel.listenForSOSRequests { requests = it }
-        val ambListener = requestModel.listenForAmbulances {
-            ambulances = it
-            val currentEmail = FirebaseAuth.getInstance().currentUser?.email
-            myAmbulance = it.find { amb -> amb.driver == currentEmail }
+        val reqListener = requestModel.listenForSOSRequests { rawRequests ->
+            requests = rawRequests.filter { it.latitude != 0.0 && it.longitude != 0.0 }
         }
+
+        val ambListener = requestModel.fetchAllAmbulances { list ->
+            ambulances = list
+            val currentEmail = FirebaseAuth.getInstance().currentUser?.email
+            myAmbulance = list.find { amb -> amb.driver == currentEmail }
+        }
+
         onDispose {
             reqListener.remove()
             ambListener.remove()
         }
     }
 
+    // Background
     Box {
         Image(
             painter = painterResource(id = R.drawable.background),
@@ -84,7 +89,6 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
                     )
                 },
                 actions = {
-                    // Overflow Menu
                     var expanded by remember { mutableStateOf(false) }
                     IconButton(onClick = { expanded = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Menu", tint = Color.White)
@@ -133,142 +137,24 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
                 items(activeRequests) { req ->
                     ActiveRequestCard(
                         request = req,
-                        onResolve = {
-                            requestModel.markRequestResolved(req.id, context)
-                        },
+                        onResolve = { requestModel.markRequestResolved(req.id, context) },
                         context = context
                     )
                 }
             }
 
             // My Ambulance Info
-            item {
-                SectionHeader("My Ambulance")
-            }
+            item { SectionHeader("My Ambulance") }
 
             if (myAmbulance != null) {
-                item {
-                    var showEditDialog by remember { mutableStateOf(false) }
-                    var showDeleteDialog by remember { mutableStateOf(false) }
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B).copy(alpha = 0.95f)
-                        ),
-                        elevation = CardDefaults.cardElevation(6.dp),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text("Email: ${myAmbulance!!.driver}", fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.9f)
-                            )
-                            Text("Organisation: ${myAmbulance!!.organisation}", color = Color.White)
-                            Text("Plate: ${myAmbulance!!.plateNumber}", color = Color.White)
-                            Text("Status: ${myAmbulance!!.status}", color = Color.White.copy(alpha = 0.9f)
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                Button(onClick = { showEditDialog = true }) {
-                                    Text("Edit")
-                                }
-                                Button(
-                                    onClick = { showDeleteDialog = true },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                                ) {
-                                    Text("Delete")
-                                }
-                            }
-                        }
-                    }
-
-                    // ✏️ Edit Dialog
-                    if (showEditDialog) {
-                        var newOrg by remember { mutableStateOf(myAmbulance!!.organisation) }
-                        var newPlate by remember { mutableStateOf(myAmbulance!!.plateNumber) }
-
-                        AlertDialog(
-                            onDismissRequest = { showEditDialog = false },
-                            title = { Text("Edit Ambulance") },
-                            text = {
-                                Column {
-                                    OutlinedTextField(
-                                        value = newOrg,
-                                        onValueChange = { newOrg = it },
-                                        label = { Text("Organisation") }
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = newPlate,
-                                        onValueChange = { newPlate = it },
-                                        label = { Text("Plate Number") }
-                                    )
-                                }
-                            },
-                            confirmButton = {
-                                Button(onClick = {
-                                    FirebaseFirestore.getInstance()
-                                        .collection("ambulances")
-                                        .document(myAmbulance!!.id)
-                                        .update(
-                                            mapOf(
-                                                "organisation" to newOrg,
-                                                "plateNumber" to newPlate
-                                            )
-                                        )
-                                    showEditDialog = false
-                                }) {
-                                    Text("Update")
-                                }
-                            },
-                            dismissButton = {
-                                OutlinedButton(onClick = { showEditDialog = false }) {
-                                    Text("Cancel")
-                                }
-                            }
-                        )
-                    }
-
-                    // 🗑️ Delete Confirmation Dialog
-                    if (showDeleteDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showDeleteDialog = false },
-                            title = { Text("Confirm Delete") },
-                            text = { Text("Are you sure you want to delete this ambulance?") },
-                            confirmButton = {
-                                Button(
-                                    onClick = {
-                                        FirebaseFirestore.getInstance()
-                                            .collection("ambulances")
-                                            .document(myAmbulance!!.id)
-                                            .delete()
-                                        showDeleteDialog = false
-                                    },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                                ) {
-                                    Text("Delete")
-                                }
-                            },
-                            dismissButton = {
-                                OutlinedButton(onClick = { showDeleteDialog = false }) {
-                                    Text("Cancel")
-                                }
-                            }
-                        )
-                    }
-                }
-
-
-        } else {
+                item { MyAmbulanceCard(myAmbulance!!) }
+            } else {
                 item { EmptyCard("No ambulance linked to your account") }
             }
         }
     }
 
-    // 🔹 Dialog showing all registered ambulances
+    // Dialog showing all registered ambulances
     if (showAmbulanceDialog) {
         AlertDialog(
             onDismissRequest = { showAmbulanceDialog = false },
@@ -283,7 +169,7 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
                     items(ambulances) { amb ->
                         Column(Modifier.padding(vertical = 6.dp)) {
                             Text("ID: ${amb.id}", fontWeight = FontWeight.Bold)
-                            Text("Driver: ${amb.driver}")
+                            Text("Emailb b6yhmj: ${amb.driver}")
                             Text("Plate: ${amb.plateNumber}")
                             Text("Organisation: ${amb.organisation}")
                             Divider(Modifier.padding(top = 6.dp))
@@ -295,7 +181,90 @@ fun AmbulanceDashboard(navController: NavController, context: Context) {
     }
 }
 
+// 🔹 My Ambulance Card (editable & deletable)
+@Composable
+fun MyAmbulanceCard(myAmbulance: Ambulance) {
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF2B2B2B).copy(alpha = 0.95f)),
+        elevation = CardDefaults.cardElevation(6.dp),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Email: ${myAmbulance.driver}", fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.9f))
+            Text("Organisation: ${myAmbulance.organisation}", color = Color.White)
+            Text("Plate: ${myAmbulance.plateNumber}", color = Color.White)
+            Text("Status: ${myAmbulance.status}", color = Color.White.copy(alpha = 0.9f))
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(onClick = { showEditDialog = true }) { Text("Edit") }
+                Button(onClick = { showDeleteDialog = true }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Delete") }
+            }
+        }
+    }
+
+    // Edit Dialog
+    if (showEditDialog) {
+        var newOrg by remember { mutableStateOf(myAmbulance.organisation) }
+        var newPlate by remember { mutableStateOf(myAmbulance.plateNumber) }
+
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Ambulance") },
+            text = {
+                Column {
+                    OutlinedTextField(value = newOrg, onValueChange = { newOrg = it }, label = { Text("Organisation") })
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = newPlate, onValueChange = { newPlate = it }, label = { Text("Plate Number") })
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    FirebaseFirestore.getInstance()
+                        .collection("ambulances")
+                        .document(myAmbulance.id)
+                        .update(mapOf("organisation" to newOrg, "plateNumber" to newPlate))
+                    showEditDialog = false
+                }) { Text("Update") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showEditDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Delete Dialog
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Confirm Delete") },
+            text = { Text("Are you sure you want to delete this ambulance?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        FirebaseFirestore.getInstance()
+                            .collection("ambulances")
+                            .document(myAmbulance.id)
+                            .delete()
+                        showDeleteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
 
 @Composable
 fun PendingRequestCard(req: sosRequests, context: Context, requestModel: RequestModel, myAmbulance: Ambulance?) {

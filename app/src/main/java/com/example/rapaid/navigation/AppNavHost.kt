@@ -13,7 +13,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.rapaid.data.Location
 import com.example.rapaid.ui.theme.screens.AmbulanceDashboard
-import com.example.rapaid.ui.theme.screens.HomeScreen
+
 import com.example.rapaid.ui.theme.screens.LocationPermissionScreen
 
 import com.example.rapaid.ui.theme.screens.UserSOSScreen
@@ -38,9 +38,9 @@ fun AppNavHost(
         composable(ROUTE_CHOOSE_REGISTER){ChooseRegisterScreen(navController)}
         composable(ROUTE_REGISTER_AMBULANCE){AmbulanceRegisterScreen(navController)}
         composable(ROUTE_REGISTER_PATIENT){PatientRegisterScreen(navController)}
-        composable(ROUTE_HOME) {
-            HomeScreen(navController)
-        }
+//        composable(ROUTE_HOME) {
+//            HomeScreen(navController)
+//        }
 
 
         composable(ROUTE_SOS_SCREEN) {
